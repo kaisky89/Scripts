@@ -1,0 +1,4 @@
+#!/bin/bash
+cd /share/Public/.scripts/Scripts
+touch test.txt
+./dyndnslogin >> ./dyndns-logs/log.txt

@@ -8,16 +8,8 @@
 
 ########################################################################
 # DynDNS Settings (default-value, overwrite with $1 and $2)
-DEFAULT_USERNAME="username"
-DEFAULT_PASSWORD="password"
-
-# Import settings from /etc/ddclient.conf if available
-DDCONF="/etc/ddclient.conf"
-if [ -r "$DDCONF" ] && grep -q "^server=members.dyndns.org" "$DDCONF"
-then
-    DEFAULT_USERNAME="`awk -F= '/^login=/{ print $2 }' $DDCONF`"
-    DEFAULT_PASSWORD="`awk -F= '/^password=/{ print $2 }' $DDCONF`"
-fi
+DEFAULT_USERNAME="`cat dyndnslogin-data | grep user | cut -f 2 -d :`"
+DEFAULT_PASSWORD="`cat dyndnslogin-data | grep password | cut -f 2 -d :`"
 
 ########################################################################
 # Variabeln
@@ -25,28 +17,35 @@ USERNAME=${1:-$DEFAULT_USERNAME}
 PASSWORD=${2:-$DEFAULT_PASSWORD}
 
 PROGNAME=dyndnslogin
-COOKIE=`mktemp --tmpdir="/tmp" -t ${PROGNAME}_cookie_XXXXX`
-OUTPUT=`mktemp --tmpdir="/tmp" -t ${PROGNAME}_output_XXXXX`
+COOKIE="${PROGNAME}_cookie"
+OUTPUT="${PROGNAME}_output"
+DATE=`date +"%y-%m-%d--%H-%M-%S"`
+
+touch $COOKIE
+touch $OUTPUT
+
 USERAGENT="Mozilla/5.0"
 
 ########################################################################
 # Main
 
-MULTIFORM=`curl -s -A $USERAGENT -c $COOKIE https://account.dyn.com \
-  | awk -F\' '/multiform/{ print $6 }'`
+curl -k -A $USERAGENT -c $COOKIE https://account.dyn.com | awk -F\' '/multiform/{ print $6 }'
+MULTIFORM=`curl -s -k -A $USERAGENT -c $COOKIE https://account.dyn.com | awk -F\' '/multiform/{ print $6 }'`
 
-curl -s --location -A "$USERAGENT" -b $COOKIE -c $COOKIE -o $OUTPUT \
-  --data "username=$USERNAME&password=$PASSWORD&iov_id=&submit=Log+in&multiform=$MULTIFORM" \
-  https://account.dyn.com/
+curl -s -k --location -A "$USERAGENT" -b $COOKIE -c $COOKIE -o $OUTPUT --data "username=$USERNAME&password=$PASSWORD&iov_id=&submit=Log+in&multiform=$MULTIFORM" https://account.dyn.com
 
 if grep -i -E "(Welcome|Hi).*$USERNAME" $OUTPUT > /dev/null 2>&1
 then
-  echo Login successful
+  echo $DATE: Login successful
 else
-  echo Login failed
+  echo $DATE: Login failed
   FAILED="true"
 fi
 
+cat $OUTPUT > dyndns-logs/$DATE.htm
+
+cp $COOKIE $COOKIE.old
+cp $OUTPUT $OUTPUT.old
 rm $COOKIE
 rm $OUTPUT
 
